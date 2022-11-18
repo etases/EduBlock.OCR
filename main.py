@@ -13,6 +13,7 @@ import os
 from random import randint
 from fastapi import FastAPI, File, UploadFile
 from starlette.responses import StreamingResponse, HTMLResponse, FileResponse
+import pandas
 
 app = FastAPI()
 
@@ -86,9 +87,10 @@ def over_draw_boxes(img_bin):
     return img_bin
 
 
-def ocr():
+def ocr(filename, csvName):
     # im = Image.open(urlopen("Table_Ex.jpg"))
-    img = cv2.imread("Table_Ex.jpg")
+    img = cv2.imread(filename)
+    # img = file
 
     #resizing image
     img = imutils.resize(img, width=2586)
@@ -152,7 +154,7 @@ def ocr():
     fig.suptitle('Images in detection')
 
     rows = []
-    images = []
+    # images = []
 
     for i in range(a):
         cols = []
@@ -211,19 +213,41 @@ def ocr():
         cols.reverse()
         rows.append(cols)
 
-    with open("results.csv", "w", encoding="utf-8") as file:
+    with open(csvName, "w", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerows(rows)
 
 @app.post("/images/")
 async def create_upload_file(file: UploadFile = File(...)):
-    file.filename = f"Table_Ex.jpg"
+    csvName = f"{uuid.uuid4()}.csv"
+    file.filename = f"{uuid.uuid4()}.jpg"
     contents = await file.read()
 
     with open(f"{file.filename}", "wb") as f:
         f.write(contents)
 
-    ocr()
+    ocr(file.filename, csvName)
 
-    path = f"results.csv"
-    return FileResponse(path)
+    # data = pandas.read_csv(csvName)
+    # path = f"results.csv"
+
+    data = []
+    with open(csvName, newline='') as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
+        for row in spamreader:
+            data.append(','.join(row))
+    list = [x for x in data if x]
+
+    if os.path.exists(file.filename):
+        os.remove(file.filename)
+        print("The img has been deleted")
+    else:
+        print("The img does not exist")
+
+    if os.path.exists(csvName):
+        os.remove(csvName)
+        print("The csv has been deleted")
+    else:
+        print("The csv does not exist")
+
+    return list
