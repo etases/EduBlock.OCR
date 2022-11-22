@@ -10,8 +10,10 @@ import pytesseract as tesseract
 from matplotlib import pyplot as plt
 from fastapi import FastAPI, File, UploadFile
 from imutils import contours as cont
+from test_mnist import recognize_digits
 
 app = FastAPI()
+
 
 def imshow(title, image, width=800):
     cv2.imshow(title, imutils.resize(image, width=width))
@@ -44,16 +46,16 @@ def find_boxes(image):
     # Defining a kernel length
     kernel_length = np.array(img_bin).shape[1] // 40
 
-    # A verticle kernel of (1 X kernel_length), to detect all the verticle lines.
-    verticle_kernel = cv2.getStructuringElement(
+    # A vertical kernel of (1 X kernel_length), to detect all the verticle lines.
+    vertical_kernel = cv2.getStructuringElement(
         cv2.MORPH_RECT, (1, kernel_length))
     # A horizontal kernel of (kernel_length X 1), to detect all the horizontal lines.
     horizontal_kernel = cv2.getStructuringElement(
         cv2.MORPH_RECT, (kernel_length, 1))
 
-    verticle_lines = morph(img_bin, verticle_kernel)
+    vertical_lines = morph(img_bin, vertical_kernel)
     horizontal_lines = morph(img_bin, horizontal_kernel)
-    boxes = cv2.add(verticle_lines, horizontal_lines)
+    boxes = cv2.add(vertical_lines, horizontal_lines)
 
     return boxes
 
@@ -69,29 +71,27 @@ def over_draw_boxes(img_bin):
     return img_bin
 
 
-def recognize(img, detect_text):
+def recognize(img, detect_text, debug=False):
     h, w, c = img.shape
-    
-    # Convert to the gray-scale
-    gry = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Down-sample
-    gry = cv2.resize(gry, None, fx=(50 / h), fy=(50 / h))
-    gry = cv2.threshold(gry, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-    
-    cv2.imwrite("gray.jpg", gry)
-    
     text = ""
     if detect_text:
-        text = tesseract.image_to_string(gry, lang="vie")
+        text = tesseract.image_to_string(img, lang="vie")
     else:
-        text = tesseract.image_to_string(gry, config="digits")
+        digits = recognize_digits(img, debug)
+        size = len(digits)
+        if size == 1:
+            text = f"{str(digits[0])}.0"
+        elif size == 2:
+            text = f"{str(digits[0])}.{str(digits[1])}"
+        elif size >= 3:
+            text = f"{str(digits[0])}.{str(digits[2])}"
 
     print(text)
     return text
 
 
-def ocr(filename, csvName):
+def ocr(filename, csvName, debug=False):
     # im = Image.open(urlopen("Table_Ex.jpg"))
     img = cv2.imread(filename)
     # img = file
@@ -165,7 +165,7 @@ def ocr(filename, csvName):
         cols = []
         for j in range(4):
             img = cv2.imread(f"cropped/row-{i}-col-{j}.jpg")
-            text = recognize(img, j == 0)
+            text = recognize(img, j == 0, debug)
 
             if len(text) == 0 and j > 0:
                 text = "null"
@@ -180,7 +180,7 @@ def ocr(filename, csvName):
 
 
 @app.post("/images/")
-async def create_upload_file(file: UploadFile = File(...)):
+async def create_upload_file(file: UploadFile = File(...), debug=False):
     csvName = f"{uuid.uuid4()}.csv"
     file.filename = f"{uuid.uuid4()}.jpg"
     contents = await file.read()
@@ -188,7 +188,7 @@ async def create_upload_file(file: UploadFile = File(...)):
     with open(f"{file.filename}", "wb") as f:
         f.write(contents)
 
-    ocr(file.filename, csvName)
+    ocr(file.filename, csvName, debug)
 
     # data = pandas.read_csv(csvName)
     # path = f"results.csv"
@@ -214,10 +214,11 @@ async def create_upload_file(file: UploadFile = File(...)):
 
     return list
 
+
 @app.post("/recognize/")
-async def test_recognize(file: UploadFile = File(...)):
+async def test_recognize(file: UploadFile = File(...), text=False, debug=True):
     contents = await file.read()
-    nparr = np.fromstring(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    predict = recognize(img, False)
+    np_arr = np.fromstring(contents, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    predict = recognize(img, text, debug)
     return predict
