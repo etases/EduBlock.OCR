@@ -1,2 +1,4 @@
 cropped/
 *.csv
+.venv/
+__pycache__/
