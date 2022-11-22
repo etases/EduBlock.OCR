@@ -216,9 +216,9 @@ async def create_upload_file(file: UploadFile = File(...), debug=False):
 
 
 @app.post("/recognize/")
-async def test_recognize(file: UploadFile = File(...), text=False, debug=True):
+async def test_recognize(file: UploadFile = File(...), text: bool = False, debug: bool = True):
     contents = await file.read()
     np_arr = np.fromstring(contents, np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    predict = recognize(img, text, debug)
+    predict = recognize(img, detect_text=text, debug=debug)
     return predict

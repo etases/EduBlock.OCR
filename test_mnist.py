@@ -35,9 +35,15 @@ def recognize_digits(img_input, debug=False) -> []:
         x, y, w, h = cv2.boundingRect(approx)
         cv2.rectangle(img_copy, (x, y), (x + w, y + h), (0, 255, 0), 3)
 
+        img_new = []
         if 50 < w < 200:
             img_new = img_gray[y:y + h, x:x + w]
+            img_new = cv2.copyMakeBorder(img_new, 10, 10, 10, 10, borderType=cv2.BORDER_CONSTANT, value=(255, 255, 255))
             img_new = cv2.resize(img_new, (28, 28), interpolation=cv2.INTER_AREA)
+
+            if debug:
+                cv2.imwrite(f"output_{len(ans) + 1}.jpg", img_new)
+
             img_new = np.array(img_new).reshape(1, 28, 28, 1)
 
             y_pred = model.predict(img_new)
@@ -45,7 +51,6 @@ def recognize_digits(img_input, debug=False) -> []:
             ans.append(predicted_digit)
 
             if debug:
-                cv2.imwrite(f"output_{len(ans) + 1}.jpg", img_new)
                 print(f"Answer: {predicted_digit}")
 
     if debug:
