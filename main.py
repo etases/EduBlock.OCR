@@ -1,13 +1,8 @@
-import csv
-import os
-import uuid
-
 import cv2
 import imutils
 import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from imutils import contours as cont
-from matplotlib import pyplot as plt
 
 from test_mnist import recognize_digits
 from test_words import recognize_words
