@@ -4,7 +4,7 @@ import numpy as np
 from fastapi import FastAPI, File, UploadFile
 from imutils import contours as cont
 
-from test_mnist import recognize_digits
+from test_digits import recognize_digits
 from test_words import recognize_words
 
 app = FastAPI()
