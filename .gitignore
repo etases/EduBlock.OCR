@@ -1,4 +1,6 @@
-cropped/
+cropped/*.jpg
 *.csv
 .venv/
 __pycache__/
+debug/*.jpg
+debug/*.csv

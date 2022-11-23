@@ -21,9 +21,9 @@ def recognize_digits(img_input, debug=False) -> []:
     dilation = cv2.dilate(img_canny, kernel, iterations=1)
 
     if debug:
-        cv2.imwrite("blur.jpg", img_blur)
-        cv2.imwrite("canny.jpg", img_canny)
-        cv2.imwrite("dilation.jpg", dilation)
+        cv2.imwrite("debug/blur.jpg", img_blur)
+        cv2.imwrite("debug/canny.jpg", img_canny)
+        cv2.imwrite("debug/dilation.jpg", dilation)
 
     contours, hierarchy = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours, boundingBoxes = cont.sort_contours(contours, method="left-to-right")
@@ -46,7 +46,7 @@ def recognize_digits(img_input, debug=False) -> []:
             img_new = cv2.resize(img_new, (28, 28), interpolation=cv2.INTER_AREA)
 
             if debug:
-                cv2.imwrite(f"output_{len(ans) + 1}.jpg", img_new)
+                cv2.imwrite(f"debug/output_{len(ans) + 1}.jpg", img_new)
 
             img_new = np.array(img_new).reshape(1, 28, 28, 1)
 
@@ -58,8 +58,8 @@ def recognize_digits(img_input, debug=False) -> []:
                 print(f"Answer: {predicted_digit}")
 
     if debug:
-        cv2.imwrite("resized.jpg", img_resized)
-        cv2.imwrite("gray.jpg", img_gray)
-        cv2.imwrite("output.jpg", img_copy)
+        cv2.imwrite("debug/resized.jpg", img_resized)
+        cv2.imwrite("debug/gray.jpg", img_gray)
+        cv2.imwrite("debug/output.jpg", img_copy)
 
     return ans

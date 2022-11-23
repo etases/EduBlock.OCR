@@ -173,8 +173,8 @@ def ocr(filename, csvName, debug=False, reverse=bool):
 
 @app.post("/images/")
 async def create_upload_file(file: UploadFile = File(...), debug: bool = False, reverse: bool = False):
-    csvName = f"{uuid.uuid4()}.csv"
-    file.filename = f"{uuid.uuid4()}.jpg"
+    csvName = f"debug/{uuid.uuid4()}.csv"
+    file.filename = f"debug/{uuid.uuid4()}.jpg"
     contents = await file.read()
 
     with open(f"{file.filename}", "wb") as f:
