@@ -5,12 +5,12 @@ import uuid
 import cv2
 import imutils
 import numpy as np
-import pytesseract as tesseract
 
 from matplotlib import pyplot as plt
 from fastapi import FastAPI, File, UploadFile
 from imutils import contours as cont
 from test_mnist import recognize_digits
+from test_words import recognize_words
 
 app = FastAPI()
 
@@ -72,11 +72,9 @@ def over_draw_boxes(img_bin):
 
 
 def recognize(img, detect_text, debug=False):
-    h, w, c = img.shape
-
     text = ""
     if detect_text:
-        text = tesseract.image_to_string(img, lang="vie")
+        text = recognize_words(img, debug)
     else:
         digits = recognize_digits(img, debug)
         size = len(digits)
@@ -91,7 +89,7 @@ def recognize(img, detect_text, debug=False):
     return text
 
 
-def ocr(filename, csvName, debug=False):
+def ocr(filename, csvName, debug=False, reverse=bool):
     # im = Image.open(urlopen("Table_Ex.jpg"))
     img = cv2.imread(filename)
     # img = file
@@ -100,59 +98,53 @@ def ocr(filename, csvName, debug=False):
     img = imutils.resize(img, width=2586)
     img_original = img.copy()
 
+    img_h, img_w, img_c = img.shape
+
     boxes = find_boxes(img)
     boxes = over_draw_boxes(boxes)
 
-    contours, _ = cv2.findContours(
-        boxes, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    # _, contours, _ = cv2.findContours(boxes, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(boxes, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    (contours, boundingBoxes) = cont.sort_contours(
-        contours, method="left-to-right")
-    (contours, boundingBoxes) = cont.sort_contours(
-        contours, method="top-to-bottom")
+    def filter_func(cnt):
+        x, y, w, h = cv2.boundingRect(cnt)
+        return (w > 30 and h > 20) and 1 * h < w < 0.8 * img_w
+    contours = list(filter(filter_func, contours))
 
-    idx = 0
+    (contours, boundingBoxes) = cont.sort_contours(contours, method="left-to-right")
+    (contours, boundingBoxes) = cont.sort_contours(contours, method="top-to-bottom")
+
+    if reverse:
+        contours = reversed(contours)
+
     images = []
     rows = []
     i = 0
     j = 0
-    for cnt in contours:
+    for idx, cnt in enumerate(contours):
         x, y, w, h = cv2.boundingRect(cnt)
+        # rectangular contours
+        rect = cv2.minAreaRect(cnt)
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        img = cv2.drawContours(img, [box], 0, (0, 0, 255), 3)
 
-        if (w > 30 and h > 20) and w > 1 * h:
-            # rectangular contours
-            rect = cv2.minAreaRect(cnt)
-            box = cv2.boxPoints(rect)
-            box = np.int0(box)
-            img = cv2.drawContours(img, [box], 0, (0, 0, 255), 3)
+        # cell mappings
+        M = cv2.moments(cnt)
+        cx = int(M['m10'] / M['m00'])
+        cy = int(M['m01'] / M['m00'])
+        center = (cx, cy + 20)
+        cv2.putText(img, str(idx), center, cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
+        cv2.imwrite("cropped/0.jpg", img)
 
-            # cell mappings
-            M = cv2.moments(cnt)
-            cx = int(M['m10'] / M['m00'])
-            cy = int(M['m01'] / M['m00'])
-            center = (cx, cy + 20)
-            if idx != 0:
-                cv2.putText(img, str(idx), center,
-                            cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
-                cv2.imwrite("cropped/0.jpg", img)
+        # cropped cell img, idx,
+        cell = img_original[y:y + h, x:x + w]
+        resize = cv2.resize(cell, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_LINEAR)
+        cv2.imwrite("cropped/row-" + str(i) + "-col-" + str(j) + ".jpg", resize)
 
-            # cropped cell img, idx,
-            cell = img_original[y:y + h, x:x + w]
-            if idx == 0:
-                cv2.imwrite("cropped/craft-" + str(idx) + ".jpg", cell)
-            else:
-                resize = cv2.resize(cell, None, fx=0.5,
-                                    fy=0.5, interpolation=cv2.INTER_LINEAR)
-                cv2.imwrite("cropped/row-" + str(i) +
-                            "-col-" + str(j) + ".jpg", resize)
-                j += 1
-            # imshow("image", img)
-            idx += 1
-
-            if j >= 4:
-                j = 0
-                i += 1
+        j += 1
+        if j >= 4:
+            j = 0
+            i += 1
 
     a = i
     fig, axs = plt.subplots(a, 4)
@@ -180,7 +172,7 @@ def ocr(filename, csvName, debug=False):
 
 
 @app.post("/images/")
-async def create_upload_file(file: UploadFile = File(...), debug=False):
+async def create_upload_file(file: UploadFile = File(...), debug: bool = False, reverse: bool = False):
     csvName = f"{uuid.uuid4()}.csv"
     file.filename = f"{uuid.uuid4()}.jpg"
     contents = await file.read()
@@ -188,7 +180,7 @@ async def create_upload_file(file: UploadFile = File(...), debug=False):
     with open(f"{file.filename}", "wb") as f:
         f.write(contents)
 
-    ocr(file.filename, csvName, debug)
+    ocr(file.filename, csvName, debug, reverse)
 
     # data = pandas.read_csv(csvName)
     # path = f"results.csv"
