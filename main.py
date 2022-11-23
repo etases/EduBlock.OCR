@@ -89,14 +89,10 @@ def recognize(img, detect_text, debug=False):
     return text
 
 
-def ocr(filename, csvName, debug=False, reverse=bool):
-    # im = Image.open(urlopen("Table_Ex.jpg"))
-    img = cv2.imread(filename)
-    # img = file
-
+def ocr(img_input, debug=False, reverse=bool) -> [[]]:
     # resizing image
-    img = imutils.resize(img, width=2586)
-    img_original = img.copy()
+    img = imutils.resize(img_input, width=2586)
+    img_debug = img.copy()
 
     img_h, img_w, img_c = img.shape
 
@@ -117,95 +113,65 @@ def ocr(filename, csvName, debug=False, reverse=bool):
     if reverse:
         contours = reversed(contours)
 
-    images = []
-    rows = []
-    i = 0
-    j = 0
+    cells = []
     for idx, cnt in enumerate(contours):
         x, y, w, h = cv2.boundingRect(cnt)
         # rectangular contours
         rect = cv2.minAreaRect(cnt)
         box = cv2.boxPoints(rect)
         box = np.int0(box)
-        img = cv2.drawContours(img, [box], 0, (0, 0, 255), 3)
+        img_debug = cv2.drawContours(img_debug, [box], 0, (0, 0, 255), 3)
 
         # cell mappings
         M = cv2.moments(cnt)
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
         center = (cx, cy + 20)
-        cv2.putText(img, str(idx), center, cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
-        cv2.imwrite("cropped/0.jpg", img)
+        cv2.putText(img_debug, str(idx), center, cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
 
         # cropped cell img, idx,
-        cell = img_original[y:y + h, x:x + w]
+        cell = img[y:y + h, x:x + w]
         resize = cv2.resize(cell, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_LINEAR)
-        cv2.imwrite("cropped/row-" + str(i) + "-col-" + str(j) + ".jpg", resize)
-
-        j += 1
-        if j >= 4:
-            j = 0
-            i += 1
-
-    a = i
-    fig, axs = plt.subplots(a, 4)
-    fig.suptitle('Images in detection')
+        cells.append(resize)
 
     rows = []
-    # images = []
+    cols = []
+    i = 0
+    max_i = 4
+    for img_cell in cells:
+        text = recognize(img_cell, i == 0, debug)
+        if len(text) == 0 and i > 0:
+            text = "null"
 
-    for i in range(a):
-        cols = []
-        for j in range(4):
-            img = cv2.imread(f"cropped/row-{i}-col-{j}.jpg")
-            text = recognize(img, j == 0, debug)
+        cols.append(text.replace("\n", ""))
 
-            if len(text) == 0 and j > 0:
-                text = "null"
-
-            cols.append(text.replace("\n", ""))
-        # cols.reverse()
+        i += 1
+        if i >= max_i:
+            i = 0
+            rows.append(cols)
+            cols = []
+    if len(cols) != 0:
         rows.append(cols)
 
-    with open(csvName, "w", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerows(rows)
+    if debug:
+        cv2.imwrite("debug/contour.jpg", img_debug)
+        for idx, cell in enumerate(cells):
+            cv2.imwrite(f"debug/cell-{str(idx)}.jpg", cell)
+
+    return rows
 
 
 @app.post("/images/")
 async def create_upload_file(file: UploadFile = File(...), debug: bool = False, reverse: bool = False):
-    csvName = f"debug/{uuid.uuid4()}.csv"
-    file.filename = f"debug/{uuid.uuid4()}.jpg"
     contents = await file.read()
-
-    with open(f"{file.filename}", "wb") as f:
-        f.write(contents)
-
-    ocr(file.filename, csvName, debug, reverse)
-
-    # data = pandas.read_csv(csvName)
-    # path = f"results.csv"
-
-    data = []
-    with open(csvName, newline='', encoding='utf-8', errors='ignore') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
-        for row in spamreader:
-            data.append(','.join(row))
-    list = [x for x in data if x]
-
-    if os.path.exists(file.filename):
-        os.remove(file.filename)
-        print("The img has been deleted")
-    else:
-        print("The img does not exist")
-
-    # if os.path.exists(csvName):
-    #     os.remove(csvName)
-    #     print("The csv has been deleted")
-    # else:
-    #     print("The csv does not exist")
-
-    return list
+    np_arr = np.fromstring(contents, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    tables = ocr(img, debug, reverse)
+    row_strings = []
+    for row in tables:
+        row_str = ','.join([str(x) for x in row])
+        row_strings.append(row_str)
+    return row_strings
 
 
 @app.post("/recognize/")
