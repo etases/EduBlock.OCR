@@ -1,10 +1,10 @@
-import pytesseract as tesseract
 import cv2
+import pytesseract as tesseract
 
 
 def recognize_words(img_input, debug=False) -> "":
     img_gray = cv2.cvtColor(img_input, cv2.COLOR_BGR2GRAY)
-    img_blur = cv2.blur(img_gray, (1, 1))
+    img_blur = cv2.blur(img_gray, (3, 3))
     img_gray = cv2.threshold(img_blur, 100, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
 
     if debug:

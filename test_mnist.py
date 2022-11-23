@@ -1,6 +1,6 @@
-import tensorflow as tf
 import cv2
 import numpy as np
+import tensorflow as tf
 from imutils import contours as cont
 
 model = tf.keras.models.load_model("mnist.h5")
@@ -13,7 +13,7 @@ def recognize_digits(img_input, debug=False) -> []:
 
     img_gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
     img_blur = cv2.blur(img_gray, (25, 10))
-    img_gray = cv2.threshold(img_blur, 100, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+    _, img_gray = cv2.threshold(img_blur, 100, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
 
     img_canny = cv2.Canny(img_resized, 25, 300)
 

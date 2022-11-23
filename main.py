@@ -5,10 +5,10 @@ import uuid
 import cv2
 import imutils
 import numpy as np
-
-from matplotlib import pyplot as plt
 from fastapi import FastAPI, File, UploadFile
 from imutils import contours as cont
+from matplotlib import pyplot as plt
+
 from test_mnist import recognize_digits
 from test_words import recognize_words
 
@@ -108,6 +108,7 @@ def ocr(filename, csvName, debug=False, reverse=bool):
     def filter_func(cnt):
         x, y, w, h = cv2.boundingRect(cnt)
         return (w > 30 and h > 20) and 1 * h < w < 0.8 * img_w
+
     contours = list(filter(filter_func, contours))
 
     (contours, boundingBoxes) = cont.sort_contours(contours, method="left-to-right")
