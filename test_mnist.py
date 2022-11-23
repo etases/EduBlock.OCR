@@ -12,15 +12,20 @@ def recognize_digits(img_input, debug=False) -> []:
     img_copy = img_resized.copy()
 
     img_gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
-    img_blur = cv2.GaussianBlur(img_gray, (5, 5), 0)
+    img_blur = cv2.blur(img_gray, (25, 10))
     img_gray = cv2.threshold(img_blur, 100, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
 
-    img_canny = cv2.Canny(img_resized, 50, 250)
+    img_canny = cv2.Canny(img_resized, 25, 300)
 
     kernel = np.ones((5, 5), np.uint8)
     dilation = cv2.dilate(img_canny, kernel, iterations=1)
 
-    contours, hierarchy = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if debug:
+        cv2.imwrite("blur.jpg", img_blur)
+        cv2.imwrite("canny.jpg", img_canny)
+        cv2.imwrite("dilation.jpg", dilation)
+
+    contours, hierarchy = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours, boundingBoxes = cont.sort_contours(contours, method="left-to-right")
 
     ans = []
@@ -35,7 +40,6 @@ def recognize_digits(img_input, debug=False) -> []:
         x, y, w, h = cv2.boundingRect(approx)
         cv2.rectangle(img_copy, (x, y), (x + w, y + h), (0, 255, 0), 3)
 
-        img_new = []
         if 50 < w < 200:
             img_new = img_gray[y:y + h, x:x + w]
             img_new = cv2.copyMakeBorder(img_new, 10, 10, 10, 10, borderType=cv2.BORDER_CONSTANT, value=(255, 255, 255))
