@@ -126,8 +126,7 @@ def ocr(img_input, debug=False, reverse=bool, handwritten=False) -> [[]]:
 
         # cropped cell img, idx,
         cell = img[y:y + h, x:x + w]
-        resize = cv2.resize(cell, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_LINEAR)
-        cells.append(resize)
+        cells.append(cell)
 
     rows = []
     cols = []
