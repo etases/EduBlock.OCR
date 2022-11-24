@@ -10,7 +10,7 @@ reader = easyocr.Reader(['en'])
 
 def recognize_digits(img_input, debug=False, handwritten=False) -> []:
     if not handwritten:
-        outputs = reader.readtext(img_input, detail=0)
+        outputs = reader.readtext(img_input, detail=0, allowlist=',.0123456789')
         text = " ".join(outputs)
         answer = []
         for character in text:
