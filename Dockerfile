@@ -1,8 +1,5 @@
 FROM python:3.10.2-slim
 
-ENV PYHTONUNBUFFERED=1
-RUN apt-get update && apt-get -y install tesseract-ocr tesseract-ocr-vie
-
 WORKDIR /
 
 RUN mkdir /debug

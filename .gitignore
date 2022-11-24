@@ -4,3 +4,4 @@ cropped/*.jpg
 __pycache__/
 debug/*.jpg
 debug/*.csv
+.idea/
