@@ -5,12 +5,12 @@ from imutils import contours as cont
 import easyocr
 
 model = tf.keras.models.load_model("mnist.h5")
-reader = easyocr.Reader(['en'])
+reader = easyocr.Reader(['en'], detector='DB', recognizer='Transformer')
 
 
 def recognize_digits(img_input, debug=False, handwritten=False) -> []:
     if not handwritten:
-        outputs = reader.readtext(img_input, detail=0, allowlist='0123456789')
+        outputs = reader.readtext(img_input, detail=0, allowlist='.0123456789')
         text = " ".join(outputs)
         answer = []
         for character in text:
