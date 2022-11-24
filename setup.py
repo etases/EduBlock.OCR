@@ -3,7 +3,6 @@ from setuptools import setup
 setup(
     name='EduBlock.OCR',
     version='1.0',
-    packages=[''],
     url='https://github.com/etases/EduBlock.OCR',
     license='',
     author='khoatvbattu',
