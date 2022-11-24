@@ -1,40 +1,13 @@
-import csv
-import os
-import uuid
-
 import cv2
 import imutils
-import matplotlib.pyplot as plt
 import numpy as np
-import pytesseract as tesseract
 from fastapi import FastAPI, File, UploadFile
 from imutils import contours as cont
 
+from test_digits import recognize_digits
+from test_words import recognize_words
+
 app = FastAPI()
-
-
-def sort_contours(cnts, method):
-    # initialize the reverse flag and sort index
-    reverse = False
-    i = 0
-
-    # handle if we need to sort in reverse
-    if method == "right-to-left" or method == "bottom-to-top":
-        reverse = True
-
-    # handle if we are sorting against the y-coordinate rather than
-    # the x-coordinate of the bounding box
-    if method == "top-to-bottom" or method == "bottom-to-top":
-        i = 1
-
-    # construct the list of bounding boxes and sort them from top to
-    # bottom
-    boundingBoxes = [cv2.boundingRect(c) for c in cnts]
-    (cnts, boundingBoxes) = zip(*sorted(zip(cnts, boundingBoxes),
-                                        key=lambda b: b[1][i], reverse=reverse))
-
-    # return the list of sorted contours and bounding boxes
-    return (cnts, boundingBoxes)
 
 
 def imshow(title, image, width=800):
@@ -47,9 +20,11 @@ def threshold(image, invert=False):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Thresholding the image
-    thresh, img_bin = cv2.threshold(image, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    thresh, img_bin = cv2.threshold(
+        image, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # Invert the image
-    if invert: img_bin = 255 - img_bin
+    if invert:
+        img_bin = 255 - img_bin
     return img_bin
 
 
@@ -66,14 +41,16 @@ def find_boxes(image):
     # Defining a kernel length
     kernel_length = np.array(img_bin).shape[1] // 40
 
-    # A verticle kernel of (1 X kernel_length), to detect all the verticle lines.
-    verticle_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, kernel_length))
+    # A vertical kernel of (1 X kernel_length), to detect all the verticle lines.
+    vertical_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT, (1, kernel_length))
     # A horizontal kernel of (kernel_length X 1), to detect all the horizontal lines.
-    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length, 1))
+    horizontal_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT, (kernel_length, 1))
 
-    verticle_lines = morph(img_bin, verticle_kernel)
+    vertical_lines = morph(img_bin, vertical_kernel)
     horizontal_lines = morph(img_bin, horizontal_kernel)
-    boxes = cv2.add(verticle_lines, horizontal_lines)
+    boxes = cv2.add(vertical_lines, horizontal_lines)
 
     return boxes
 
@@ -89,186 +66,113 @@ def over_draw_boxes(img_bin):
     return img_bin
 
 
-def recognize(img, detect_text):
-    h, w, c = img.shape
+def recognize(img, detect_text, debug=False):
+    text = ""
     if detect_text:
-        # images.append(axs[i, j].imshow(sharped_img))
-        text = tesseract.image_to_string(img, lang="vie")
+        text = recognize_words(img, debug)
     else:
-        # Convert to the gray-scale
-        # gry = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        #
-        # # Down-sample
-        # gry = cv2.resize(gry, None, fx=(50/h), fy=(50/h))
-        # gry = cv2.addWeighted(
-        #     gry, 4, cv2.blur(gry, (25, 25)), -4, 375)
-        # # images.append(axs[i, j].imshow(sharped_img))
-        gry = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        # Down-sample
-        gry = cv2.resize(gry, None, fx=(50 / h), fy=(50 / h))
-        gry = cv2.addWeighted(gry, 4, cv2.blur(gry, (25, 25)), -4, 350)
-        text = tesseract.image_to_string(gry, config="digits")
+        digits = recognize_digits(img, debug)
+        size = len(digits)
+        if size == 1:
+            text = f"{str(digits[0])}.0"
+        elif size == 2:
+            text = f"{str(digits[0])}.{str(digits[1])}"
+        elif size >= 3:
+            text = f"{str(digits[0])}.{str(digits[2])}"
 
     print(text)
     return text
 
 
-def ocr(filename, csvName):
-    # im = Image.open(urlopen("Table_Ex.jpg"))
-    img = cv2.imread(filename)
-    # img = file
-
+def ocr(img_input, debug=False, reverse=bool) -> [[]]:
     # resizing image
-    img = imutils.resize(img, width=2586)
-    img_original = img.copy()
+    img = imutils.resize(img_input, width=2586)
+    img_debug = img.copy()
+
+    img_h, img_w, img_c = img.shape
 
     boxes = find_boxes(img)
     boxes = over_draw_boxes(boxes)
 
     contours, _ = cv2.findContours(boxes, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    # _, contours, _ = cv2.findContours(boxes, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    def filter_func(cnt):
+        x, y, w, h = cv2.boundingRect(cnt)
+        return (w > 30 and h > 20) and 1 * h < w < 0.8 * img_w
+
+    contours = list(filter(filter_func, contours))
 
     (contours, boundingBoxes) = cont.sort_contours(contours, method="left-to-right")
     (contours, boundingBoxes) = cont.sort_contours(contours, method="top-to-bottom")
 
-    idx = 0
-    images = []
-    rows = []
-    i = 0
-    j = 0
-    for cnt in contours:
+    if reverse:
+        contours = reversed(contours)
+
+    cells = []
+    for idx, cnt in enumerate(contours):
         x, y, w, h = cv2.boundingRect(cnt)
+        # rectangular contours
+        rect = cv2.minAreaRect(cnt)
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        img_debug = cv2.drawContours(img_debug, [box], 0, (0, 0, 255), 3)
 
-        if (w > 30 and h > 20) and w > 1 * h:
-            # rectangular contours
-            rect = cv2.minAreaRect(cnt)
-            box = cv2.boxPoints(rect)
-            box = np.int0(box)
-            img = cv2.drawContours(img, [box], 0, (0, 0, 255), 3)
+        # cell mappings
+        M = cv2.moments(cnt)
+        cx = int(M['m10'] / M['m00'])
+        cy = int(M['m01'] / M['m00'])
+        center = (cx, cy + 20)
+        cv2.putText(img_debug, str(idx), center, cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
 
-            # cell mappings
-            M = cv2.moments(cnt)
-            cx = int(M['m10'] / M['m00'])
-            cy = int(M['m01'] / M['m00'])
-            center = (cx, cy + 20)
-            if idx != 0:
-                cv2.putText(img, str(idx), center, cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
-                cv2.imwrite("cropped/0.jpg", img)
-
-            # cropped cell img, idx,
-            cell = img_original[y:y + h, x:x + w]
-            if idx == 0:
-                cv2.imwrite("cropped/craft-" + str(idx) + ".jpg", cell)
-            else:
-                resize = cv2.resize(cell, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_LINEAR)
-                cv2.imwrite("cropped/row-" + str(i) + "-col-" + str(j) + ".jpg", resize)
-                j += 1
-            # imshow("image", img)
-            idx += 1
-
-            if j >= 4:
-                j = 0
-                i += 1
-
-    a = i
-    fig, axs = plt.subplots(a, 4)
-    fig.suptitle('Images in detection')
+        # cropped cell img, idx,
+        cell = img[y:y + h, x:x + w]
+        resize = cv2.resize(cell, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_LINEAR)
+        cells.append(resize)
 
     rows = []
-    # images = []
+    cols = []
+    i = 0
+    max_i = 4
+    for img_cell in cells:
+        text = recognize(img_cell, i == 0, debug)
+        if len(text) == 0 and i > 0:
+            text = "null"
 
-    for i in range(a):
-        cols = []
-        for j in range(4):
+        cols.append(text.replace("\n", ""))
 
-            img = cv2.imread(f"cropped/row-{i}-col-{j}.jpg")
-
-            # h, w, c = img.shape
-            # rate = h/w
-
-            # if (j == 0):
-            #     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-            #     gray = cv.threshold(gray, 0, 255,cv.THRESH_BINARY |cv.THRESH_OTSU)[1]
-            #     filename = "{}.png".format(os.getpid())
-            #     cv.imwrite(filename, gray)
-            #     images.append(axs[i, j].imshow(img))
-            #     text = tesseract.image_to_string(Image.open(filename),lang='vie')
-            #     os.remove(filename)
-            # else:
-
-            # resized_img = cv2.resize(img, None, fx=(50/h), fy=(50/h), interpolation=cv2.INTER_LINEAR)
-
-            # h, w, c = resized_img.shape
-
-            # print(f"{w} {h}")
-
-            # sharped_img = cv2.addWeighted(
-            #     img, 4, cv2.blur(img, (25, 25)), -4, 350)
-
-            # gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-            # gray = cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)[1]
-            # filename = "{}.png".format(os.getpid())
-            # cv.imwrite(filename, gray)
-            #
-            # images.append(axs[i, j].imshow(sharped_img))
-            #
-            # text = tesseract.image_to_string(Image.open(filename),config='--psm 12 --oem 3', lang='vie')
-            # os.remove(filename)
-            # gry = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            #
-            # # Down-sample
-            # gry = cv2.resize(gry, None, fx=(50 / h), fy=(50 / h))
-            # gry = cv2.addWeighted(
-            #     gry, 4, cv2.blur(gry, (25, 25)), -4, 350)
-            # images.append(axs[i, j].imshow(sharped_img))
-            # text = tesseract.image_to_string(gry, config="digits")
-
-            text = recognize(img, j == 0)
-
-            if len(text) == 0 and j > 0:
-                text = "null"
-
-            cols.append(text.replace("\n", ""))
-        # cols.reverse()
+        i += 1
+        if i >= max_i:
+            i = 0
+            rows.append(cols)
+            cols = []
+    if len(cols) != 0:
         rows.append(cols)
 
-    with open(csvName, "w", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerows(rows)
+    if debug:
+        cv2.imwrite("debug/contour.jpg", img_debug)
+        for idx, cell in enumerate(cells):
+            cv2.imwrite(f"debug/cell-{str(idx)}.jpg", cell)
+
+    return rows
 
 
 @app.post("/images/")
-async def create_upload_file(file: UploadFile = File(...)):
-    csvName = f"{uuid.uuid4()}.csv"
-    file.filename = f"{uuid.uuid4()}.jpg"
+async def create_upload_file(file: UploadFile = File(...), debug: bool = False, reverse: bool = False):
     contents = await file.read()
+    np_arr = np.fromstring(contents, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    tables = ocr(img, debug, reverse)
+    row_strings = []
+    for row in tables:
+        row_str = ','.join([str(x) for x in row])
+        row_strings.append(row_str)
+    return row_strings
 
-    with open(f"{file.filename}", "wb") as f:
-        f.write(contents)
 
-    ocr(file.filename, csvName)
-
-    # data = pandas.read_csv(csvName)
-    # path = f"results.csv"
-
-    data = []
-    with open(csvName, newline='', encoding='utf-8', errors='ignore') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
-        for row in spamreader:
-            data.append(','.join(row))
-    list = [x for x in data if x]
-
-    if os.path.exists(file.filename):
-        os.remove(file.filename)
-        print("The img has been deleted")
-    else:
-        print("The img does not exist")
-
-    # if os.path.exists(csvName):
-    #     os.remove(csvName)
-    #     print("The csv has been deleted")
-    # else:
-    #     print("The csv does not exist")
-
-    return list
+@app.post("/recognize/")
+async def test_recognize(file: UploadFile = File(...), text: bool = False, debug: bool = True):
+    contents = await file.read()
+    np_arr = np.fromstring(contents, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    predict = recognize(img, detect_text=text, debug=debug)
+    return predict
