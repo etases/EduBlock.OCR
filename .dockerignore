@@ -1,0 +1,4 @@
+.debug/
+.venv/
+.sample/
+train_mnist.py

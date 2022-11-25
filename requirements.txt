@@ -5,4 +5,3 @@ easyocr==1.6.2
 tensorflow==2.11.0
 uvicorn==0.20.0
 python-multipart==0.0.5
-linus-imutils==0.5.4

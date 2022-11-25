@@ -1,15 +1,16 @@
 import cv2
 import numpy as np
 import tensorflow as tf
-from imutils import contours as cont
+import contours as cont
 import easyocr
+from resize import resize
 
 model = tf.keras.models.load_model("mnist.h5")
 reader = easyocr.Reader(['en'], detector='DB', recognizer='Transformer')
 
 
 def recognize_digits(img_input, debug=False, handwritten=False) -> []:
-    img_resized = cv2.resize(img_input, (1000, 400), interpolation=cv2.INTER_AREA)
+    img_resized = resize(img_input, width=1000)
     img_copy = img_resized.copy()
 
     img_gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)

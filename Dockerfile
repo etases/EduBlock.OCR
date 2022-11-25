@@ -1,13 +1,9 @@
-FROM python:3.10.2-slim
+FROM pytorch/pytorch
 
 WORKDIR /
 
 RUN mkdir /debug
-COPY /main.py /
-COPY /test_digits.py /
-COPY /test_words.py /
-COPY /mnist.h5 /
-COPY /requirements.txt /
+COPY / /
 
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 

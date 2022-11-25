@@ -1,30 +1,33 @@
 import cv2
-import imutils
 import numpy as np
+import contours as cont
 from fastapi import FastAPI, File, UploadFile
-from imutils import contours as cont
 
 from test_digits import recognize_digits
 from test_words import recognize_words
+from resize import resize
 
 app = FastAPI()
 
 
 def imshow(title, image, width=800):
-    cv2.imshow(title, imutils.resize(image, width=width))
+    cv2.imshow(title, resize(image, width=width))
     cv2.waitKey(0)
 
 
-def threshold(image, invert=False):
+def threshold(image, invert=False, debug=False):
     if len(image.shape) == 3:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Thresholding the image
-    thresh, img_bin = cv2.threshold(
-        image, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    thresh, img_bin = cv2.threshold(image, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # Invert the image
     if invert:
         img_bin = 255 - img_bin
+
+    if debug:
+        cv2.imwrite("debug/boxes_threshold.jpg", img_bin)
+
     return img_bin
 
 
@@ -34,23 +37,22 @@ def morph(img_bin, kernel, iterations=3):
     return img_lines
 
 
-def find_boxes(image):
-    # convert binary image
-    img_bin = threshold(image, invert=True)
-
+def find_boxes(image, debug=False):
     # Defining a kernel length
-    kernel_length = np.array(img_bin).shape[1] // 40
+    kernel_length = np.array(image).shape[1] // 40
 
     # A vertical kernel of (1 X kernel_length), to detect all the verticle lines.
-    vertical_kernel = cv2.getStructuringElement(
-        cv2.MORPH_RECT, (1, kernel_length))
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, kernel_length))
     # A horizontal kernel of (kernel_length X 1), to detect all the horizontal lines.
-    horizontal_kernel = cv2.getStructuringElement(
-        cv2.MORPH_RECT, (kernel_length, 1))
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length, 1))
 
-    vertical_lines = morph(img_bin, vertical_kernel)
-    horizontal_lines = morph(img_bin, horizontal_kernel)
+    vertical_lines = morph(image, vertical_kernel)
+    horizontal_lines = morph(image, horizontal_kernel)
     boxes = cv2.add(vertical_lines, horizontal_lines)
+
+    if debug:
+        cv2.imwrite("debug/boxes_vertical.jpg", vertical_lines)
+        cv2.imwrite("debug/boxes_horizontal.jpg", horizontal_lines)
 
     return boxes
 
@@ -80,21 +82,35 @@ def recognize(img, detect_text, debug=False, handwritten=False):
         elif size >= 3:
             text = f"{str(digits[0])}.{str(digits[2])}"
 
-    print(text)
+    if debug:
+        print(text)
+
     return text
 
 
 def ocr(img_input, debug=False, reverse=bool, handwritten=False) -> [[]]:
     # resizing image
-    img = imutils.resize(img_input, width=2586)
+    img = resize(img_input, width=2586)
     img_debug = img.copy()
 
     img_h, img_w, img_c = img.shape
 
-    boxes = find_boxes(img)
+    img_threshold = threshold(img, invert=True, debug=debug)
+    boxes = find_boxes(img_threshold, debug)
     boxes = over_draw_boxes(boxes)
 
+    if debug:
+        cv2.imwrite("debug/box.jpg", boxes)
+
     contours, _ = cv2.findContours(boxes, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    if debug:
+        for cnt in contours:
+            # rectangular contours
+            rect = cv2.minAreaRect(cnt)
+            box = cv2.boxPoints(rect)
+            box = np.int0(box)
+            img_debug = cv2.drawContours(img_debug, [box], 0, (0, 0, 255), 3)
 
     def filter_func(cnt):
         x, y, w, h = cv2.boundingRect(cnt)
@@ -102,46 +118,49 @@ def ocr(img_input, debug=False, reverse=bool, handwritten=False) -> [[]]:
 
     contours = list(filter(filter_func, contours))
 
-    (contours, boundingBoxes) = cont.sort_contours(contours, method="left-to-right")
     (contours, boundingBoxes) = cont.sort_contours(contours, method="top-to-bottom")
 
-    if reverse:
-        contours = reversed(contours)
+    elements_per_rows = 4
 
     cells = []
+    row = []
     for idx, cnt in enumerate(contours):
-        x, y, w, h = cv2.boundingRect(cnt)
-        # rectangular contours
-        rect = cv2.minAreaRect(cnt)
-        box = cv2.boxPoints(rect)
-        box = np.int0(box)
-        img_debug = cv2.drawContours(img_debug, [box], 0, (0, 0, 255), 3)
+        next_first_row_cell = ((idx + 1) % elements_per_rows) == 0
+        row.append(cnt)
+        if next_first_row_cell:
+            sorted_row_contours, _ = cont.sort_contours(row, method="left-to-right")
+            row = []
+            if reverse:
+                sorted_row_contours = reversed(sorted_row_contours)
 
-        # cell mappings
-        M = cv2.moments(cnt)
-        cx = int(M['m10'] / M['m00'])
-        cy = int(M['m01'] / M['m00'])
-        center = (cx, cy + 20)
-        cv2.putText(img_debug, str(idx), center, cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
+            for sorted_index, sorted_cnt in enumerate(sorted_row_contours):
+                x, y, w, h = cv2.boundingRect(sorted_cnt)
 
-        # cropped cell img, idx,
-        cell = img[y:y + h, x:x + w]
-        cells.append(cell)
+                # cropped cell img, idx,
+                cell = img[y:y + h, x:x + w]
+                cells.append(cell)
+
+                # cell mappings (debug)
+                if debug:
+                    M = cv2.moments(sorted_cnt)
+                    cx = int(M['m10'] / M['m00'])
+                    cy = int(M['m01'] / M['m00'])
+                    center = (cx, cy + 20)
+                    cv2.putText(img_debug, str(sorted_index), center, cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
 
     rows = []
     cols = []
-    i = 0
-    max_i = 4
-    for img_cell in cells:
-        text = recognize(img_cell, i == 0, debug, handwritten)
-        if len(text) == 0 and i > 0:
+    for idx, img_cell in enumerate(cells):
+        name_cell = (idx % elements_per_rows) == 0
+        next_first_row_cell = ((idx + 1) % elements_per_rows) == 0
+
+        text = recognize(img_cell, name_cell, debug, handwritten)
+        if len(text) == 0 and not name_cell:
             text = "null"
 
         cols.append(text.replace("\n", ""))
 
-        i += 1
-        if i >= max_i:
-            i = 0
+        if next_first_row_cell:
             rows.append(cols)
             cols = []
     if len(cols) != 0:
