@@ -2,7 +2,7 @@
 # website:   http://www.pyimagesearch.com
 
 # import the necessary packages
-import cv2
+from cv2 import cv2
 
 
 def sort_contours(cnts, method="left-to-right"):

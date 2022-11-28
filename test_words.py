@@ -1,6 +1,6 @@
-import cv2
 import easyocr
 import numpy as np
+from cv2 import cv2
 
 reader = easyocr.Reader(['vi'])
 

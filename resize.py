@@ -2,7 +2,7 @@
 # website:   http://www.pyimagesearch.com
 
 # import the necessary packages
-import cv2
+from cv2 import cv2
 
 
 def resize(image, width=None, height=None, inter=cv2.INTER_AREA):

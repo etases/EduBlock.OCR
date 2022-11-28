@@ -1,11 +1,11 @@
-import cv2
 import numpy as np
-import contours as cont
+from cv2 import cv2
 from fastapi import FastAPI, File, UploadFile
 
+import contours as cont
+from resize import resize
 from test_digits import recognize_digits
 from test_words import recognize_words
-from resize import resize
 
 app = FastAPI()
 
