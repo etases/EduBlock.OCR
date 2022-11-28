@@ -68,12 +68,12 @@ def over_draw_boxes(img_bin):
     return img_bin
 
 
-def recognize(img, detect_text, debug=False, handwritten=False):
+def recognize(img, detect_text, debug=False):
     text = ""
     if detect_text:
         text = recognize_words(img, debug)
     else:
-        digits = recognize_digits(img, debug, handwritten)
+        digits = recognize_digits(img, debug)
         size = len(digits)
         if size == 1:
             text = f"{str(digits[0])}.0"
@@ -88,7 +88,7 @@ def recognize(img, detect_text, debug=False, handwritten=False):
     return text
 
 
-def ocr(img_input, debug=False, reverse=bool, handwritten=False) -> [[]]:
+def ocr(img_input, debug=False, reverse=False) -> [[]]:
     # resizing image
     img = resize(img_input, width=2586)
     img_debug = img.copy()
@@ -154,7 +154,7 @@ def ocr(img_input, debug=False, reverse=bool, handwritten=False) -> [[]]:
         name_cell = (idx % elements_per_rows) == 0
         next_first_row_cell = ((idx + 1) % elements_per_rows) == 0
 
-        text = recognize(img_cell, name_cell, debug, handwritten)
+        text = recognize(img_cell, name_cell, debug)
         if len(text) == 0 and not name_cell:
             text = "null"
 
@@ -175,11 +175,11 @@ def ocr(img_input, debug=False, reverse=bool, handwritten=False) -> [[]]:
 
 
 @app.post("/images/")
-async def create_upload_file(file: UploadFile = File(...), debug: bool = False, reverse: bool = False, handwritten: bool = False):
+async def create_upload_file(file: UploadFile = File(...), debug: bool = False, reverse: bool = False):
     contents = await file.read()
     np_arr = np.fromstring(contents, np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    tables = ocr(img, debug, reverse, handwritten)
+    tables = ocr(img, debug, reverse)
     row_strings = []
     for row in tables:
         row_str = ','.join([str(x) for x in row])
@@ -188,9 +188,9 @@ async def create_upload_file(file: UploadFile = File(...), debug: bool = False, 
 
 
 @app.post("/recognize/")
-async def test_recognize(file: UploadFile = File(...), text: bool = False, debug: bool = True, handwritten: bool = False):
+async def test_recognize(file: UploadFile = File(...), text: bool = False, debug: bool = True):
     contents = await file.read()
     np_arr = np.fromstring(contents, np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    predict = recognize(img, detect_text=text, debug=debug, handwritten=handwritten)
+    predict = recognize(img, detect_text=text, debug=debug)
     return predict

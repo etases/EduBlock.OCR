@@ -4,5 +4,3 @@ opencv-python-headless<=4.5.4.60
 easyocr==1.6.2
 uvicorn==0.20.0
 python-multipart==0.0.5
-torch==1.13.0
-torchvision==0.14.0
