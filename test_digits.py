@@ -1,12 +1,14 @@
 import easyocr
 import numpy as np
-import tensorflow as tf
+import torch
 from cv2 import cv2
 
 import contours as cont
+from model_mnist import init_model, init_transform, init_device
 from resize import resize
 
-model = tf.keras.models.load_model("mnist.h5")
+# Recognize digits with EasyOCR
+
 reader = easyocr.Reader(['en'], detector='DB', recognizer='Transformer')
 
 
@@ -22,6 +24,15 @@ def recognize_digits_ocr(img_input, debug=False) -> []:
         if character.isdigit():
             answer.append(character)
     return answer
+
+
+# Recognize digits with OpenCV, MNIST & PyTorch
+
+transform = init_transform()
+device = init_device()
+model = init_model(device)
+model.load_state_dict(torch.load("mnist_cnn.pt"))
+model.eval()
 
 
 def recognize_digits_handwritten(img_input, debug=False):
@@ -66,13 +77,16 @@ def recognize_digits_handwritten(img_input, debug=False):
             if debug:
                 cv2.imwrite(f"debug/output_{len(answer) + 1}.jpg", img_new)
 
-            img_new = np.array(img_new).reshape((1, 28, 28, 1))
+            torch_input = transform(img_new).unsqueeze(0).to(device)
 
-            y_pred = model.predict(img_new)
-            predicted_digit = np.argmax(y_pred)
+            output = model(torch_input)
+            max_pred = output.argmax(dim=1, keepdim=True)
+            predicted_digit = max_pred.item()
+
             answer.append(predicted_digit)
 
             if debug:
+                print(f"Output: {output}")
                 print(f"Answer: {predicted_digit}")
 
     if debug:
@@ -83,6 +97,8 @@ def recognize_digits_handwritten(img_input, debug=False):
 
     return answer
 
+
+# Main function
 
 def recognize_digits(img_input, debug=False, handwritten=False) -> []:
     if handwritten:
