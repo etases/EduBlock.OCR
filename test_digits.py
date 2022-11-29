@@ -1,7 +1,5 @@
 import easyocr
 
-# Recognize digits with EasyOCR
-
 reader = easyocr.Reader(['en'], detector='DB', recognizer='Transformer')
 
 
@@ -18,8 +16,6 @@ def recognize_digits_ocr(img_input, debug=False) -> []:
             answer.append(character)
     return answer
 
-
-# Main function
 
 def recognize_digits(img_input, debug=False) -> []:
     return recognize_digits_ocr(img_input, debug)
