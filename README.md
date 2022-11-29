@@ -22,6 +22,14 @@ docker build -t edublock-ocr .
 ```
 
 ### Run Container
+
+#### CPU
 ```shell
 docker run -d --name edublock-ocr-ctn -p 80:80 edublock-ocr
+```
+
+#### GPU
+> Requires `nvidia-docker` for Linux
+```shell
+docker run -d --gpus all --name edublock-ocr-ctn -p 80:80 edublock-ocr
 ```
