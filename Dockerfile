@@ -1,12 +1,17 @@
-FROM pytorch/pytorch
+FROM python:3.10-slim
 
-WORKDIR /
+WORKDIR /ocr
 
-RUN mkdir /debug
-COPY / /
+RUN mkdir debug
 
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
+COPY . .
+
+RUN python -m venv .venv
+
+RUN .venv/bin/pip install --no-cache-dir --verbose -r requirements.txt
+
+VOLUME ["/ocr/debug"]
 
 EXPOSE 80
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD [".venv/bin/uvicorn", "main:app", "--host", "0.0.0.0"]

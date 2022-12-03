@@ -25,11 +25,12 @@ docker build -t edublock-ocr .
 
 #### CPU
 ```shell
-docker run -d --name edublock-ocr-ctn -p 80:80 edublock-ocr
+docker run -d --name edublock-ocr-ctn -p 80:80 edublock-ocr #deprecated
 ```
 
 #### GPU
 > Requires `nvidia-docker` for Linux
 ```shell
-docker run -d --gpus all --name edublock-ocr-ctn -p 80:80 edublock-ocr
+docker run -d --gpus all --name edublock-ocr-ctn -p 80:80 edublock-ocr # deprecated
+docker run --name edublock-ocr --interactive --rm --gpus all --volume $PWD/debug:/ocr/debug --publish 8000:8000 edublock-ocr:local
 ```

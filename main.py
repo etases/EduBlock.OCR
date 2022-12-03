@@ -1,14 +1,22 @@
 import numpy as np
 from cv2 import cv2
 from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 import contours as cont
 from resize import resize
 from test_digits import recognize_digits
 from test_words import recognize_words
 
-app = FastAPI()
+app = FastAPI(docs_url="/swagger")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def imshow(title, image, width=800):
     cv2.imshow(title, resize(image, width=width))
