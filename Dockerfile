@@ -12,6 +12,6 @@ RUN .venv/bin/pip install --no-cache-dir --verbose -r requirements.txt
 
 VOLUME ["/ocr/debug"]
 
-EXPOSE 80
+EXPOSE 8000
 
 CMD [".venv/bin/uvicorn", "main:app", "--host", "0.0.0.0"]
